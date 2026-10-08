@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "brand": "Northstar Outdoor",
+  "synthetic": true,
+  "seed": 20261007,
+  "currency": "USD",
+  "as_of": "2026-09-30",
+  "attribution": "Single campaign and creative credit per order; acquisition-date cohorts.",
+  "scenario_notes": [
+    "High revenue with low margins and returns",
+    "Creative engagement decline",
+    "Landing-page conversion decline",
+    "Delayed Pinterest purchases"
+  ]
+}

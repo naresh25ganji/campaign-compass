@@ -1,0 +1,13 @@
+[project]
+name = "campaign-compass"
+version = "0.1.0"
+description = "Investigate advertising performance and plan budgets using contribution economics."
+requires-python = ">=3.11"
+dependencies = ["streamlit>=1.48,<2", "pandas>=2.2,<3", "numpy>=2,<3", "plotly>=6,<7"]
+
+[dependency-groups]
+dev = ["pytest>=8,<10"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

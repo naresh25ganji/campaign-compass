@@ -1,0 +1,13 @@
+campaign_id,campaign_name,channel,goal,audience,daily_budget,target_cpa
+NC-01,Summit essentials,Facebook,Sales,New customers,210,38
+NC-02,Last chance packs,Facebook,Sales,Returning customers,185,38
+NC-03,Trail stories,Facebook,Awareness,Outdoor explorers,95,75
+NC-04,Alpine launch,Instagram,Sales,New customers,230,38
+NC-05,Weekend kit,Instagram,Sales,Returning customers,160,38
+NC-06,Camp in color,Instagram,Awareness,Outdoor explorers,110,75
+NC-07,Evergreen trail,Pinterest,Sales,New customers,155,38
+NC-08,Cabin collection,Pinterest,Sales,Returning customers,145,38
+NC-09,Adventure moodboard,Pinterest,Awareness,Outdoor explorers,90,75
+NC-10,Field gear,Twitter/X,Sales,New customers,150,38
+NC-11,Trail club,Twitter/X,Sales,Returning customers,120,38
+NC-12,Outside daily,Twitter/X,Awareness,Outdoor explorers,80,75
