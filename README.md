@@ -6,6 +6,8 @@ An original Week 1 option 2 project for a fictional retailer, **Northstar Outdoo
 
 [![Tests](https://github.com/naresh25ganji/campaign-compass/actions/workflows/tests.yml/badge.svg)](https://github.com/naresh25ganji/campaign-compass/actions/workflows/tests.yml)
 
+**[Open the live app](https://campaign-compass.streamlit.app/)** — hosted on Streamlit Community Cloud.
+
 ## A decision worth investigating
 
 An impressive revenue multiple can hide losses after product costs, discounts, and returns. Start with **Last chance packs**, inspect its contribution, compare purchase outcomes at equal ages, then explore a constrained budget scenario. Download a decision brief to share the evidence and assumptions.

@@ -1,6 +1,8 @@
 # Deploy Campaign Compass
 
-The repository is public at https://github.com/naresh25ganji/campaign-compass. Hosting is a separate step from publishing code.
+The live app is https://campaign-compass.streamlit.app/. It was deployed on October 8, 2026 from the public repository https://github.com/naresh25ganji/campaign-compass, branch `main`, entry point `app.py`, using Python 3.12. No secrets are required.
+
+Chrome smoke checks confirmed all six views, campaign investigation navigation, empty channel selections, filter reset, and a locked budget scenario. Both HTML briefs downloaded from the hosted app; the budget brief opened independently and retained the lock and scenario assumptions.
 
 ## Streamlit Community Cloud
 

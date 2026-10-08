@@ -32,3 +32,7 @@ Chrome access became available after retry. Verified investigation navigation, c
 Added visible clicks, purchase conversions, and contribution ROI to Overview, plus a spend/conversion trend with separate labeled axes and partial-week averages. Added contribution ROI to platform comparison and campaign tables. Added a self-contained HTML decision brief that carries the filter scope and evidence; the planner version carries the actual budget settings, locks, allocations, comparator, and sensitivity assumptions. Uploaded labels are escaped before HTML export.
 
 Added tests for filtered source totals, exported budget totals and locks, HTML escaping, undefined ratios, and overview metrics following channel filters. All 35 tests passed locally. Prepared deployment instructions; native Google Doc import requires the Google Drive connection, and the video still needs a recorded live walkthrough.
+
+## Public deployment on October 8
+
+Deployed to https://campaign-compass.streamlit.app/ through Chrome after the user completed GitHub authentication and authorization. Used `main`, `app.py`, and Python 3.12. Verified all six hosted views, investigation navigation, empty filters and reset, and Summit essentials locked at USD 1494.36. Downloaded both HTML briefs from the hosted app and opened the budget brief independently to verify its selected lock and assumptions. Prepared a visually verified five-page submission document and a timed narration script; the video remains to be recorded.
