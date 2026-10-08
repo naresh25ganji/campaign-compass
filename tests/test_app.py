@@ -21,7 +21,7 @@ def test_empty_filter_and_reset_restore_results():
     assert any("No data for selected filters" in item.value for item in app.info)
     next(b for b in app.button if b.label == "Reset filters").click().run()
     assert len(app.multiselect(key="channels").value) == 4
-    assert len(app.metric) == 4
+    assert len(app.metric) == 7
     assert not app.exception
 
 
@@ -44,3 +44,18 @@ def test_search_literal_regex_and_infeasible_plan():
     app.number_input[0].set_value(1.0).run()
     assert not app.exception
     assert any("feasible range" in item.value for item in app.warning)
+
+
+def test_overview_metrics_follow_channel_filters():
+    from campaign_compass.analytics import facts, metrics
+    from campaign_compass.data import load_directory
+    full = facts(load_directory(APP.parent / "data"))
+    selected = full.loc[full.channel.eq("Pinterest") & full.date.ge("2026-07-03")]
+    expected = metrics(selected)
+    app = AppTest.from_file(str(APP), default_timeout=30).run()
+    app.multiselect(key="channels").set_value(["Pinterest"]).run()
+    shown = {m.label: m.value for m in app.metric}
+    assert shown["Clicks"] == f"{expected['clicks']:,.0f}"
+    assert shown["Purchase conversions"] == f"{expected['purchases']:,.0f}"
+    assert shown["Contribution ROI"] == f"{expected['contribution_roi']:.1%}"
+    assert not app.exception

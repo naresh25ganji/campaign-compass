@@ -26,3 +26,9 @@ Capture actual prompts/screenshots, prepare the Google Doc, and record the video
 ## Chrome verification
 
 Chrome access became available after retry. Verified investigation navigation, campaign selection, empty filters and reset, and a locked budget matching its baseline. Found dollar-sign pairs rendering as math markup in evidence text. Escaped currency in prose and feasibility messages, added reader-facing table labels/units, and changed weekly overview trends to averages per observed acquisition day so partial weeks do not look like full-week volume declines. The nine app-interaction tests passed after these changes.
+
+## Submission improvements on October 8
+
+Added visible clicks, purchase conversions, and contribution ROI to Overview, plus a spend/conversion trend with separate labeled axes and partial-week averages. Added contribution ROI to platform comparison and campaign tables. Added a self-contained HTML decision brief that carries the filter scope and evidence; the planner version carries the actual budget settings, locks, allocations, comparator, and sensitivity assumptions. Uploaded labels are escaped before HTML export.
+
+Added tests for filtered source totals, exported budget totals and locks, HTML escaping, undefined ratios, and overview metrics following channel filters. All 35 tests passed locally. Prepared deployment instructions; native Google Doc import requires the Google Drive connection, and the video still needs a recorded live walkthrough.

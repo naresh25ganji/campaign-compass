@@ -15,6 +15,7 @@ from campaign_compass.analytics import (aggregate, cohort_curve, facts, filter_f
 from campaign_compass.charts import CHANNEL_COLORS, finish, line, waterfall
 from campaign_compass.data import DataError, export_bundle, load_bundle, load_directory
 from campaign_compass.planner import optimize, planning_inputs, response
+from campaign_compass.brief import decision_brief
 
 ROOT = Path(__file__).parent
 st.set_page_config(page_title="Campaign Compass", page_icon="🧭", layout="wide")
@@ -24,6 +25,7 @@ h1 {letter-spacing:-1.4px; font-weight:750 !important;}
 h2,h3 {letter-spacing:-.4px;}
 [data-testid="stMetric"] {background:#fff; border:1px solid #E2E8F0; border-radius:12px; padding:18px 20px;}
 [data-testid="stMetricLabel"] {color:#607084;}
+[data-testid="stMetricLabel"] p {white-space:normal !important; overflow:visible !important;}
 [data-testid="stMetricValue"] {font-size:1.9rem;}
 [data-testid="stSidebar"] {border-right:1px solid #E2E8F0;}
 .eyebrow {font-size:11px; letter-spacing:2px; color:#147D71; font-weight:700; margin:0 0 8px;}
@@ -85,15 +87,15 @@ def csv_download(df, label, filename, key):
 def show_table(df, keys):
     labels = {"campaign_name": "Campaign", "creative_id": "Creative", "channel": "Channel", "goal": "Goal", "audience": "Audience",
               "spend": "Ad spend ($)", "purchases": "Purchases", "net_revenue": "Net revenue ($)",
-              "contribution": "Contribution ($)", "cpa": "CPA ($)", "roas": "Net ROAS (×)",
+              "contribution": "Contribution ($)", "contribution_roi": "Contribution ROI (%)", "clicks": "Clicks", "cpa": "CPA ($)", "roas": "Net ROAS (×)",
               "cvr": "Session CVR (%)", "refund_rate": "Refunded orders (%)", "ctr": "CTR (%)",
               "cpc": "CPC ($)", "impressions": "Impressions", "new_customers": "New customers"}
     view = df[keys].copy()
-    for col in ["cvr", "refund_rate", "ctr"]:
+    for col in ["cvr", "refund_rate", "ctr", "contribution_roi"]:
         if col in view:
             view[col] *= 100
     configs = {labels.get(col, col): st.column_config.NumberColumn(format="%.2f")
-               for col in keys if col in ["spend", "net_revenue", "contribution", "cpa", "roas", "cvr", "refund_rate", "ctr", "cpc"]}
+               for col in keys if col in ["spend", "net_revenue", "contribution", "contribution_roi", "cpa", "roas", "cvr", "refund_rate", "ctr", "cpc"]}
     st.dataframe(view.rename(columns=labels), hide_index=True, width="stretch", column_config=configs)
 
 
@@ -104,12 +106,14 @@ def overview(selected, previous, full, dataset, context):
     previous_complete = context["prior_complete"]
     cards = [("Ad spend", "spend", money), ("Net revenue", "net_revenue", money),
              ("Contribution after ads", "contribution", money), ("Net ROAS", "roas", lambda x: "—" if pd.isna(x) else f"{x:.2f}×")]
-    for column, (label, key, formatter) in zip(st.columns(4), cards):
+    cards += [("Clicks", "clicks", number), ("Purchase conversions", "purchases", number), ("Contribution ROI", "contribution_roi", pct)]
+    columns = st.columns(4) + st.columns(3)
+    for column, (label, key, formatter) in zip(columns, cards):
         delta = None
         if previous_complete and np.isfinite(prior[key]) and prior[key] != 0:
-            delta = f"{(m[key] - prior[key]) / abs(prior[key]):+.1%} vs previous period"
+            delta = f"{(m[key] - prior[key]) / abs(prior[key]):+.1%} vs prior"
         column.metric(label, formatter(m[key]), delta, delta_color="off" if key == "spend" else "normal")
-    st.caption("Net ROAS = net attributed revenue ÷ spend. Contribution excludes overhead and is not a measure of causal advertising lift.")
+    st.caption("Conversions are recorded purchases. Contribution ROI = contribution after ads ÷ ad spend. Net ROAS = net attributed revenue ÷ spend. Contribution excludes overhead and does not measure causal advertising lift.")
     left, right = st.columns([1.2, 1])
     with left:
         st.subheader("Where revenue goes")
@@ -124,12 +128,28 @@ def overview(selected, previous, full, dataset, context):
         chart(finish(px.line(daily, x="date", y="USD", color="Measure", labels={"date": "Week starting", "USD": "USD per acquisition day"}), height=360, money=True),
               "overview_trend", "Weekly average daily net revenue and contribution after advertising, in dollars per acquisition day.")
         st.caption("Weekly averages per observed acquisition day keep partial weeks comparable. Recent cohorts can still develop.")
+    st.subheader("Spend and purchase conversions")
+    weekly = aggregate(selected, "date")
+    weekly["week"] = weekly.date.dt.to_period("W").dt.start_time
+    weekly = weekly.groupby("week")[["spend", "purchases"]].mean().reset_index()
+    fig = go.Figure()
+    fig.add_bar(x=weekly.week, y=weekly.spend, name="Ad spend per day", marker_color="#147D71", hovertemplate="Spend: $%{y:,.2f} per day<extra></extra>")
+    fig.add_scatter(x=weekly.week, y=weekly.purchases, name="Purchase conversions per day", mode="lines+markers", yaxis="y2", line=dict(color="#6478AD"), hovertemplate="Purchases: %{y:.1f} per day<extra></extra>")
+    finish(fig, height=300, money=True)
+    fig.update_layout(xaxis_title="Week starting", yaxis_title="USD per acquisition day", yaxis2=dict(title="Purchases per acquisition day", overlaying="y", side="right", showgrid=False, rangemode="tozero", tickformat=",.0f"))
+    chart(fig, "overview_spend_conversions", "Weekly average daily ad spend on the left axis and purchase conversions on the right axis.")
+    st.caption("Separate axes show different units; line crossings do not imply equal values. Weekly averages account for partial weeks. Recent purchases may still develop.")
     st.subheader("Investigate next")
     recent_start = max(pd.Timestamp(context["start"]), pd.Timestamp(context["end"]) - pd.Timedelta(days=27))
     recent = selected.loc[selected.date >= recent_start]
     prior_recent, ps, pe = previous_period(full, recent_start, context["end"], context["channels"], context["goals"], context["audiences"], context["mature"])
     st.caption(f"Evidence compares {recent_start:%b %d}–{pd.Timestamp(context['end']):%b %d} with {ps:%b %d}–{pe:%b %d}, using the same audience, channel, and goal filters. Rules flag hypotheses, not statistical significance.")
     findings = investigations(recent, prior_recent)
+    comparison = f"Investigation evidence compares {recent_start:%Y-%m-%d}–{pd.Timestamp(context['end']):%Y-%m-%d} with {ps:%Y-%m-%d}–{pe:%Y-%m-%d}, using the same filters."
+    if ps < full.date.min():
+        comparison += " The preceding period has incomplete source coverage."
+    st.download_button("Download decision brief", decision_brief(selected, dataset.manifest, context, findings, comparison),
+                       "campaign-compass-decision-brief.html", "text/html", key="overview_brief")
     if not findings:
         st.info("No campaign meets the investigation rules for this selection. Explore campaign details or broaden the period.")
     for finding in findings[:3]:
@@ -149,11 +169,11 @@ def platforms(selected):
     st.title("Compare channels on equal terms.")
     st.caption("Use the goal filter to compare similar objectives. Awareness campaigns are not ranked as acquisition failures.")
     grouped = aggregate(selected, "channel")
-    metric = st.selectbox("Compare by", ["Contribution after ads", "Net ROAS", "CPA", "CTR"], key="platform_metric")
+    metric = st.selectbox("Compare by", ["Contribution after ads", "Contribution ROI", "Net ROAS", "CPA", "CTR"], key="platform_metric")
     field, label = {"Contribution after ads": ("contribution", "Contribution ($)"), "Net ROAS": ("roas", "Net ROAS (×)"),
-                    "CPA": ("cpa", "CPA ($)"), "CTR": ("ctr", "CTR (%)")}[metric]
+                    "CPA": ("cpa", "CPA ($)"), "CTR": ("ctr", "CTR (%)"), "Contribution ROI": ("contribution_roi", "Contribution ROI (%)")}[metric]
     plotting = grouped.copy()
-    if field == "ctr":
+    if field in ["ctr", "contribution_roi"]:
         plotting[field] *= 100
     a, b = st.columns(2)
     with a:
@@ -165,7 +185,7 @@ def platforms(selected):
                                 labels={"spend": "Ad spend ($)", "contribution": "Contribution ($)", "net_revenue": "Net revenue ($)"}), money=True),
               "platform_scatter", "Channel contribution versus ad spend; bubble size represents net revenue.")
     st.subheader("Channel economics")
-    show_table(grouped, ["channel", "spend", "purchases", "net_revenue", "contribution", "roas", "cpa", "cvr", "refund_rate"])
+    show_table(grouped, ["channel", "spend", "clicks", "purchases", "net_revenue", "contribution", "contribution_roi", "roas", "cpa", "cvr", "refund_rate"])
     csv_download(grouped, "Export channel metrics", "channel-metrics.csv", "channel_export")
 
 
@@ -176,7 +196,7 @@ def campaigns(selected, previous):
     if search:
         grouped = grouped.loc[grouped.campaign_name.str.contains(search, case=False, regex=False)
                               | grouped.campaign_id.str.contains(search, case=False, regex=False)]
-    show_table(grouped, ["campaign_name", "channel", "goal", "spend", "purchases", "roas", "contribution", "cpa"])
+    show_table(grouped, ["campaign_name", "channel", "goal", "spend", "clicks", "purchases", "roas", "contribution", "contribution_roi", "cpa"])
     csv_download(grouped, "Export campaign metrics", "campaign-metrics.csv", "campaign_export")
     if grouped.empty:
         st.info("No campaigns match that search.")
@@ -242,7 +262,7 @@ def trends(selected, dataset):
             st.dataframe(curve[["day", "channel", "sessions", "purchases", "cvr_percent"]], hide_index=True, width="stretch")
 
 
-def planner(selected):
+def planner(selected, full, dataset, context):
     st.title("Plan the next seven days.")
     st.write("Explore a budget allocation using settled sales cohorts and an assumed diminishing-return curve.")
     inputs = planning_inputs(selected)
@@ -305,6 +325,15 @@ def planner(selected):
     export["total_budget"] = budget
     export["result_type"] = "Assumption-based scenario; not a forecast"
     csv_download(export, "Export budget scenario and assumptions", "budget-scenario.csv", "plan_export")
+    recent_start = max(pd.Timestamp(context["start"]), pd.Timestamp(context["end"]) - pd.Timedelta(days=27))
+    earlier, ps, pe = previous_period(full, recent_start, context["end"], context["channels"], context["goals"], context["audiences"], context["mature"])
+    findings = investigations(selected.loc[selected.date >= recent_start], earlier)
+    comparison = f"Investigation evidence compares {recent_start:%Y-%m-%d}–{pd.Timestamp(context['end']):%Y-%m-%d} with {ps:%Y-%m-%d}–{pe:%Y-%m-%d}, using the same filters."
+    if ps < full.date.min():
+        comparison += " The preceding period has incomplete source coverage."
+    scenario = dict(budget=budget, flexibility=flexibility, saturation=saturation)
+    st.download_button("Download decision brief with this budget scenario", decision_brief(selected, dataset.manifest, context, findings, comparison, plan, scenario),
+                       "campaign-compass-budget-brief.html", "text/html", key="planner_brief")
 
 
 def methodology(dataset, full):
@@ -396,7 +425,7 @@ def main():
     elif view == "Time Series":
         trends(selected, dataset)
     elif view == "Budget Planner":
-        planner(selected)
+        planner(selected, full, dataset, context)
 
 
 if __name__ == "__main__":
