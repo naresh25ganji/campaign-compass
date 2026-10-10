@@ -14,7 +14,7 @@ An impressive revenue multiple can hide losses after product costs, discounts, a
 
 ![Overview with campaign economics, clicks, conversions, and contribution ROI](docs/images/overview.png)
 
-![Budget planning with Summit essentials locked at its historical baseline](docs/images/budget-planner.png)
+![Saved Scenario A compared with Scenario B where Summit essentials is locked](docs/images/budget-planner.png)
 
 ## Start locally
 
