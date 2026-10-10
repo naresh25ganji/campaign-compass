@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from campaign_compass.planner import optimize, planning_inputs, response
+from campaign_compass.planner import feasible_baseline, optimize, planning_inputs, response
 
 
 def test_response_anchors_and_saturates(full):
@@ -51,3 +51,24 @@ def test_zero_flexibility_is_a_valid_unchanged_plan(full):
     total = float(inputs.baseline_spend.round(2).sum())
     plan = optimize(inputs, total, flexibility=0)
     assert plan.proposed_spend.to_numpy() == pytest.approx(inputs.baseline_spend.round(2).to_numpy())
+
+
+@pytest.mark.parametrize("budget_factor", [.8, 1., 1.2])
+def test_constraint_matched_baseline_preserves_locks_bounds_and_total(full, budget_factor):
+    inputs = planning_inputs(full)
+    budget = round(inputs.baseline_spend.sum() * budget_factor, 2)
+    plan = optimize(inputs, budget, locked=[inputs.campaign_id.iloc[0]])
+    baseline = feasible_baseline(plan, budget)
+    assert baseline.comparator_spend.sum() == pytest.approx(budget, abs=.00001)
+    assert (baseline.comparator_spend >= baseline.lower_bound - .00001).all()
+    assert (baseline.comparator_spend <= baseline.upper_bound + .00001).all()
+    assert baseline.loc[baseline.locked, 'comparator_spend'].to_numpy() == pytest.approx(plan.loc[plan.locked, 'proposed_spend'].to_numpy())
+    assert plan.proposed_contribution.sum() >= baseline.comparator_contribution.sum() - .02
+
+
+def test_all_locked_baseline_and_zero_flexibility(full):
+    inputs = planning_inputs(full)
+    total = float(inputs.baseline_spend.round(2).sum())
+    for plan in [optimize(inputs, total, locked=inputs.campaign_id.tolist()), optimize(inputs, total, flexibility=0)]:
+        baseline = feasible_baseline(plan, total)
+        assert baseline.comparator_spend.to_numpy() == pytest.approx(inputs.baseline_spend.round(2).to_numpy())

@@ -80,3 +80,41 @@ def optimize(inputs: pd.DataFrame, budget: float, flexibility: float = .35,
     out["proposed_contribution"] = out.proposed_before_ad - allocation
     out["locked"] = is_locked
     return out
+
+
+def feasible_baseline(plan: pd.DataFrame, budget: float, saturation: float = 1.5) -> pd.DataFrame:
+    """Bounded proportional allocation with the same total, limits, and locks as the plan.
+
+    Scale historical proportions uniformly, clipping to the supplied constraints.
+    This comparator does not maximize the assumed contribution response.
+    """
+    base = plan.baseline_spend.to_numpy(float)
+    lower, upper = plan.lower_bound.to_numpy(float), plan.upper_bound.to_numpy(float)
+    budget = round(budget, 2)
+    if not len(base) or not np.isfinite(budget) or budget < lower.sum() - .001 or budget > upper.sum() + .001:
+        raise ValueError("Comparator budget must be within the feasible range.")
+    lo, hi = 0., float(np.max(upper / base)) + 1
+    for _ in range(100):
+        scale = (lo + hi) / 2
+        target = np.clip(base * scale, lower, upper)
+        if target.sum() > budget:
+            hi = scale
+        else:
+            lo = scale
+    target = np.clip(base * ((lo + hi) / 2), lower, upper)
+    allocation = np.round(target, 2)
+    cents = int(round((budget - allocation.sum()) * 100))
+    while cents:
+        direction = 1 if cents > 0 else -1
+        candidates = np.where((allocation + direction * .01 >= lower - 1e-8)
+                              & (allocation + direction * .01 <= upper + 1e-8))[0]
+        if not len(candidates):
+            raise ValueError("Cannot reconcile comparator to cents within constraints.")
+        residual = (target[candidates] - allocation[candidates]) * direction
+        allocation[candidates[np.argmax(residual)]] += direction * .01
+        cents -= direction
+    out = plan.copy()
+    out["comparator_spend"] = np.round(allocation, 2)
+    out["comparator_before_ad"] = response(allocation, base, plan.baseline_before_ad, saturation)
+    out["comparator_contribution"] = out.comparator_before_ad - allocation
+    return out

@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from campaign_compass.analytics import SUM_COLUMNS, aggregate, cohort_curve, filter_facts, metrics
+from campaign_compass.analytics import SUM_COLUMNS, aggregate, cohort_curve, comparison_dates, coverage, filter_facts, metrics, previous_period
 from campaign_compass.data import DataError, export_bundle, load_bundle, validate
 
 
@@ -89,3 +89,29 @@ def test_synthetic_economics_scenario(full):
     assert trap["roas"] > 1
     assert trap["contribution"] < 0
     assert healthy["contribution"] > 0
+
+
+def test_mature_period_uses_34_days_in_both_windows(full):
+    start, end, ps, pe = comparison_dates(full, "2026-07-03", "2026-09-30", True)
+    assert end == pd.Timestamp("2026-08-05")
+    assert (ps, pe) == (pd.Timestamp("2026-05-30"), pd.Timestamp("2026-07-02"))
+    assert (end - start).days == (pe - ps).days == 33
+    previous, _, _ = previous_period(full, start, "2026-09-30", full.channel.unique(), full.goal.unique(), full.audience.unique(), True)
+    assert previous.date.nunique() == 34
+    assert previous.cohort_age.ge(56).all()
+
+
+def test_no_mature_dates_does_not_invent_a_prior_period(full):
+    previous, _, _ = previous_period(full, "2026-09-01", "2026-09-30", full.channel.unique(), full.goal.unique(), full.audience.unique(), True)
+    assert previous.empty
+
+
+def test_coverage_partitions_spend_and_preserves_missing_days(full):
+    selected = full.loc[full.date.between("2026-07-03", "2026-09-30")]
+    c = coverage(selected, "2026-07-03", "2026-09-30", "2026-09-30")
+    assert (c['days'], c['eligible_days'], c['requested_days'], c['mature_days']) == (90, 90, 90, 34)
+    assert c['purchase_spend'] + c['return_spend'] + c['mature_spend'] == pytest.approx(selected.spend.sum())
+    assert c['purchase_spend'] == pytest.approx(selected.loc[selected.date > "2026-09-09", "spend"].sum())
+    sparse = selected.loc[selected.date != pd.Timestamp("2026-07-04")]
+    assert coverage(sparse, "2026-07-03", "2026-09-30", "2026-09-30")['days'] == 89
+    assert coverage(sparse, "2026-07-03", "2026-09-30", "2026-09-30")['eligible_days'] == 90

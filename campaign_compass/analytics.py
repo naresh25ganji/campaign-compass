@@ -68,11 +68,38 @@ def aggregate(df: pd.DataFrame, by: str | list[str]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def comparison_dates(all_facts, start, end, mature_only=False):
+    """Trim the selected calendar window before deriving an equal-length prior window."""
+    start, end = pd.Timestamp(start), pd.Timestamp(end)
+    if mature_only and not all_facts.empty:
+        as_of = (all_facts.date + pd.to_timedelta(all_facts.cohort_age, unit="D")).max()
+        end = min(end, as_of - pd.Timedelta(days=56))
+    days = max(0, (end - start).days + 1)
+    prior_end = start - pd.Timedelta(days=1)
+    prior_start = prior_end - pd.Timedelta(days=max(0, days - 1))
+    return start, end, prior_start, prior_end
+
+
 def previous_period(all_facts, start, end, channels, goals, audiences, mature_only=False):
-    days = (pd.Timestamp(end) - pd.Timestamp(start)).days + 1
-    prior_end = pd.Timestamp(start) - pd.Timedelta(days=1)
-    prior_start = prior_end - pd.Timedelta(days=days - 1)
+    start, end, prior_start, prior_end = comparison_dates(all_facts, start, end, mature_only)
+    if end < start:
+        return all_facts.iloc[:0].copy(), prior_start, prior_end
     return filter_facts(all_facts, prior_start, prior_end, channels, goals, audiences, mature_only), prior_start, prior_end
+
+
+def coverage(selected, start, end, analysis_end):
+    """Describe represented acquisition days and partition spend by observation age."""
+    expected = max(0, (pd.Timestamp(analysis_end) - pd.Timestamp(start)).days + 1)
+    requested = max(0, (pd.Timestamp(end) - pd.Timestamp(start)).days + 1)
+    mature = selected.cohort_age.ge(56)
+    purchases_developing = selected.cohort_age.lt(21)
+    returns_developing = selected.cohort_age.between(21, 55)
+    return dict(days=int(selected.date.nunique()), eligible_days=expected, requested_days=requested,
+                mature_days=int(selected.loc[mature, "date"].nunique()),
+                purchase_spend=float(selected.loc[purchases_developing, "spend"].sum()),
+                return_spend=float(selected.loc[returns_developing, "spend"].sum()),
+                mature_spend=float(selected.loc[mature, "spend"].sum()),
+                total_spend=float(selected.spend.sum()))
 
 
 def investigations(current: pd.DataFrame, previous: pd.DataFrame) -> list[dict]:

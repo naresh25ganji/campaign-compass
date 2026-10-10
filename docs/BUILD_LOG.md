@@ -36,3 +36,11 @@ Added tests for filtered source totals, exported budget totals and locks, HTML e
 ## Public deployment on October 8
 
 Deployed to https://campaign-compass.streamlit.app/ through Chrome after the user completed GitHub authentication and authorization. Used `main`, `app.py`, and Python 3.12. Verified all six hosted views, investigation navigation, empty filters and reset, and Summit essentials locked at USD 1494.36. Downloaded both HTML briefs from the hosted app and opened the budget brief independently to verify its selected lock and assumptions. Prepared a visually verified five-page submission document and a timed narration script; the video remains to be recorded.
+
+## Comparison and guided-decision improvements on October 10
+
+Corrected mature-only periods before selecting the preceding comparison. The default maturity filter now compares July 3–August 5 with May 30–July 2, 34 calendar days each. Spend changes by −4.4%, replacing the misleading −63.6% from a 34-versus-90-day comparison. Mature investigations use July 9–August 5 versus June 11–July 8. Missing date coverage hides overview deltas.
+
+Added visible included/eligible dates, fully observed dates, and developing spend, with explicit observation-age partitions. Three guided presets demonstrate high ROAS with a loss, delayed purchases, and constrained reallocation. Added deep-copied Scenario A, equal-budget and identical-scope guards, common-saturation evaluation of fixed A/B allocations, and CSV/HTML exports retaining both settings and allocations. A separate proportional baseline satisfies the current budget, limits, and locks.
+
+All 48 tests passed locally. Chrome verified the maturity comparison and all three presets. Saving the unlocked USD 8226.77 plan as A and locking Summit essentials for B showed approximately USD 42 less modeled contribution for B; the lock remained at USD 1494.36. Downloaded and independently opened the A/B brief in Chrome, confirming coverage, both budgets, constraints, and allocations. Updated the demo narration and submission document to match these features.

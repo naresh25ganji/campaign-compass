@@ -5,6 +5,7 @@ import pytest
 from campaign_compass.analytics import filter_facts
 from campaign_compass.brief import decision_brief, money
 from campaign_compass.planner import optimize, planning_inputs
+from campaign_compass.scenarios import scope_key, snapshot
 
 
 class Tables(HTMLParser):
@@ -94,3 +95,27 @@ def test_brief_handles_zero_spend_without_infinite_ratios(dataset, full):
     totals = dict(r for r in rows if len(r) == 2)
     assert totals['Net ROAS'] == '—'
     assert totals['Contribution ROI'] == '—'
+
+
+def test_brief_includes_feasible_baseline_saved_scenario_and_coverage(dataset, full):
+    context, selected = scope(full, channels=sorted(full.channel.unique()))
+    inputs = planning_inputs(selected)
+    settings = dict(budget=round(inputs.baseline_spend.sum(), 2), flexibility=.35, saturation=1.5)
+    key = scope_key(context, 'default', inputs)
+    a = snapshot(optimize(inputs, **settings), settings, key)
+    b = optimize(inputs, **settings, locked=['NC-01'])
+    rows = Tables(decision_brief(selected, dataset.manifest, context, [], '', b, settings, a)).rows
+    totals = dict(r for r in rows if len(r) == 2)
+    assert totals['Acquisition days with records / eligible calendar days'] == '90 / 90'
+    assert totals['Fully observed acquisition days'] == '34'
+    baseline = [r for r in rows if len(r) == 3 and r[0] in inputs.campaign_name.tolist()]
+    def dollars(value):
+        return float(value.replace('−', '-').replace('$', '').replace(',', ''))
+    assert sum(dollars(r[1]) for r in baseline) == pytest.approx(settings['budget'])
+    locked = next(r for r in baseline if r[0] == 'Summit essentials')
+    assert locked[1] == locked[2]
+    scenarios = [r for r in rows if len(r) == 5 and r[0] in inputs.campaign_name.tolist()]
+    assert sum(dollars(r[2]) for r in scenarios) == pytest.approx(settings['budget'])
+    assert sum(dollars(r[3]) for r in scenarios) == pytest.approx(settings['budget'])
+    assert any(r[0] == 'A · saved' and r[4] == 'None' for r in rows)
+    assert any(r[0] == 'B · current' and r[4] == 'Summit essentials' for r in rows)

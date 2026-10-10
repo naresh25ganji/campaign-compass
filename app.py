@@ -10,12 +10,13 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from campaign_compass.analytics import (aggregate, cohort_curve, facts, filter_facts,
+from campaign_compass.analytics import (aggregate, cohort_curve, comparison_dates, coverage, facts, filter_facts,
                                         investigations, metrics, previous_period)
 from campaign_compass.charts import CHANNEL_COLORS, finish, line, waterfall
 from campaign_compass.data import DataError, export_bundle, load_bundle, load_directory
-from campaign_compass.planner import optimize, planning_inputs, response
+from campaign_compass.planner import feasible_baseline, optimize, planning_inputs
 from campaign_compass.brief import decision_brief
+from campaign_compass.scenarios import compare, scope_key, snapshot
 
 ROOT = Path(__file__).parent
 st.set_page_config(page_title="Campaign Compass", page_icon="🧭", layout="wide")
@@ -66,8 +67,67 @@ def chart(fig, key, description):
 
 
 def reset_filters():
-    for key in ["date_start", "date_end", "channels", "goals", "audiences", "mature", "campaign_pick", "locked"]:
+    for key in ["date_start", "date_end", "channels", "goals", "audiences", "mature", "campaign_pick", "campaign_search", "locked", "guided_step", "scenario_a"]:
         st.session_state.pop(key, None)
+
+
+def clear_guide():
+    st.session_state.pop("guided_step", None)
+
+
+def guide(step, full):
+    reset_filters()
+    for key in list(st.session_state):
+        if key.startswith("budget_"):
+            st.session_state.pop(key, None)
+    end = full.date.max().date()
+    st.session_state.update(date_start=max(full.date.min().date(), (pd.Timestamp(end) - pd.Timedelta(days=89)).date()),
+                            date_end=end, channels=sorted(full.channel.unique()), goals=["Sales"],
+                            audiences=sorted(full.audience.unique()), mature=False, guided_step=step)
+    if step == "economics":
+        st.session_state.update(view="Campaign Details", campaign_pick="NC-02", mature=True)
+    elif step == "delay":
+        st.session_state.update(view="Time Series", channels=["Pinterest"], trend_metric="Purchases", trend_group="Week")
+    else:
+        st.session_state.update(view="Budget Planner", flexibility=35, saturation=1.5)
+
+
+def use_saved_budget(key, budget):
+    st.session_state[key] = budget
+
+
+def data_coverage(selected, context):
+    c = coverage(selected, context["start"], context["end"], context["analysis_end"])
+    developing = c["purchase_spend"] + c["return_spend"]
+    share = developing / c["total_spend"] if c["total_spend"] else 0
+    with st.container(border=True):
+        a, b, d = st.columns(3)
+        a.markdown(f"**Acquisition days included · {c['days']} / {c['eligible_days']} eligible**")
+        a.caption(f"Requested {c['requested_days']} calendar days. Maturity filtering excludes {c['requested_days'] - c['eligible_days']} days.")
+        b.markdown(f"**Fully observed days · {c['mature_days']} / {c['days']} included**")
+        b.caption("The demo's settled-outcome rule is at least 56 days of observation.")
+        d.markdown(f"**Spend still developing · {money(developing)} ({share:.1%})**")
+        d.caption("Observed purchases or refunds may still change; this is not an estimated missing amount.")
+        with st.expander("See observation coverage"):
+            st.write(f"Purchases and returns may develop (under 21 days): {money(c['purchase_spend'])}.".replace("$", r"\$"))
+            st.write(f"Purchases fully observed; returns may develop (21–55 days): {money(c['return_spend'])}.".replace("$", r"\$"))
+            st.write(f"Fully observed under the demo rule (56+ days): {money(c['mature_spend'])}.".replace("$", r"\$"))
+            if c["days"] < c["eligible_days"]:
+                st.warning("Some eligible acquisition dates have no records for these filters. Missing days are not assumed to have zero spend.")
+            st.caption("Day counts represent dates with records across the selected campaigns; they do not certify every campaign has complete daily coverage.")
+
+
+def investigation_window(selected, full, context):
+    end = context["analysis_end"]
+    recent_start = max(pd.Timestamp(context["start"]), end - pd.Timedelta(days=27))
+    recent = selected.loc[selected.date.between(recent_start, end)]
+    earlier, ps, pe = previous_period(full, recent_start, end, context["channels"], context["goals"], context["audiences"], context["mature"])
+    expected = (pe - ps).days + 1
+    complete = earlier.date.nunique() == expected
+    comparison = f"Investigation evidence compares {recent_start:%Y-%m-%d}–{end:%Y-%m-%d} with {ps:%Y-%m-%d}–{pe:%Y-%m-%d}, using the same filters."
+    if not complete:
+        comparison += " The preceding period has incomplete source coverage; change-based flags are omitted."
+    return investigations(recent, earlier if complete else earlier.iloc[:0]), comparison
 
 
 def go_campaign(cid):
@@ -140,14 +200,8 @@ def overview(selected, previous, full, dataset, context):
     chart(fig, "overview_spend_conversions", "Weekly average daily ad spend on the left axis and purchase conversions on the right axis.")
     st.caption("Separate axes show different units; line crossings do not imply equal values. Weekly averages account for partial weeks. Recent purchases may still develop.")
     st.subheader("Investigate next")
-    recent_start = max(pd.Timestamp(context["start"]), pd.Timestamp(context["end"]) - pd.Timedelta(days=27))
-    recent = selected.loc[selected.date >= recent_start]
-    prior_recent, ps, pe = previous_period(full, recent_start, context["end"], context["channels"], context["goals"], context["audiences"], context["mature"])
-    st.caption(f"Evidence compares {recent_start:%b %d}–{pd.Timestamp(context['end']):%b %d} with {ps:%b %d}–{pe:%b %d}, using the same audience, channel, and goal filters. Rules flag hypotheses, not statistical significance.")
-    findings = investigations(recent, prior_recent)
-    comparison = f"Investigation evidence compares {recent_start:%Y-%m-%d}–{pd.Timestamp(context['end']):%Y-%m-%d} with {ps:%Y-%m-%d}–{pe:%Y-%m-%d}, using the same filters."
-    if ps < full.date.min():
-        comparison += " The preceding period has incomplete source coverage."
+    findings, comparison = investigation_window(selected, full, context)
+    st.caption(comparison + " Rules flag hypotheses, not statistical significance.")
     st.download_button("Download decision brief", decision_brief(selected, dataset.manifest, context, findings, comparison),
                        "campaign-compass-decision-brief.html", "text/html", key="overview_brief")
     if not findings:
@@ -189,7 +243,7 @@ def platforms(selected):
     csv_download(grouped, "Export channel metrics", "channel-metrics.csv", "channel_export")
 
 
-def campaigns(selected, previous):
+def campaigns(selected, previous, context):
     st.title("Follow the evidence.")
     grouped = aggregate(selected, ["campaign_id", "campaign_name", "channel", "goal", "audience"])
     search = st.text_input("Search campaigns", placeholder="Campaign name or ID", key="campaign_search")
@@ -214,6 +268,7 @@ def campaigns(selected, previous):
                                           ["ctr", "cpc", "cvr", "refund_rate"], [pct, lambda x: "—" if pd.isna(x) else f"${x:.2f}", pct, pct]):
         col.metric(label, formatter(m[field]), delta_color="off")
     with st.expander("Compare the drivers with the preceding period", expanded=True):
+        st.caption(context["comparison_label"])
         drivers = pd.DataFrame([{"Driver": label, "Previous": formatter(old[field]), "Selected": formatter(m[field])}
                                 for label, field, formatter in [("Cost per click", "cpc", lambda x: "—" if pd.isna(x) else f"${x:.2f}"),
                                                                ("Session conversion rate", "cvr", pct), ("Net revenue per order", "aov", money),
@@ -288,21 +343,23 @@ def planner(selected, full, dataset, context):
         st.warning(str(exc).replace("$", r"\$"))
         return
     # A proportional comparator with the same total makes unequal budgets comparable.
-    comparator = inputs.baseline_spend.to_numpy() * budget / baseline
-    comparator_before = response(comparator, inputs.baseline_spend, inputs.baseline_before_ad, saturation)
-    current_result = float(comparator_before.sum() - budget)
+    comparator = feasible_baseline(plan, budget, saturation)
+    current_result = float(comparator.comparator_contribution.sum())
     proposed_result = float(plan.proposed_contribution.sum())
     a, b, c = st.columns(3)
     a.metric("Proposed spend", money(plan.proposed_spend.sum()))
     b.metric("Modeled contribution", money(proposed_result))
-    c.metric("Change vs proportional allocation", money(proposed_result - current_result), delta_color="off")
-    st.caption("Comparator distributes the same total in historical proportions; it may not satisfy your locks. Results are model outputs, not forecasts or measured incremental lift.")
+    c.metric("Change vs constraint-matched baseline", money(proposed_result - current_result), delta_color="off")
+    st.caption("The baseline scales historical proportions within the same budget, campaign limits, and locks. Both allocations use the same saturation assumption. Results are model outputs, not forecasts or measured incremental lift.")
     plotting = plan[["campaign_name", "baseline_spend", "proposed_spend"]].melt("campaign_name", var_name="Allocation", value_name="USD")
     plotting.Allocation = plotting.Allocation.map({"baseline_spend": "Historical seven-day baseline", "proposed_spend": "Proposed"})
     chart(finish(px.bar(plotting, x="campaign_name", y="USD", color="Allocation", barmode="group", labels={"campaign_name": ""}), money=True),
           "plan_allocations", "Historical baseline and proposed seven-day spend by campaign.")
-    plan_display = plan[["campaign_name", "channel", "baseline_spend", "proposed_spend", "change", "lower_bound", "upper_bound", "locked"]].rename(columns={
+    display = plan.copy()
+    display["comparator_spend"] = comparator.comparator_spend
+    plan_display = display[["campaign_name", "channel", "baseline_spend", "comparator_spend", "proposed_spend", "change", "lower_bound", "upper_bound", "locked"]].rename(columns={
         "campaign_name": "Campaign", "channel": "Channel", "baseline_spend": "Baseline ($)",
+        "comparator_spend": "Constraint-matched baseline ($)",
         "proposed_spend": "Proposed ($)", "change": "Change ($)", "lower_bound": "Minimum ($)",
         "upper_bound": "Maximum ($)", "locked": "Locked"})
     money_columns = {col: st.column_config.NumberColumn(format="$ %.2f") for col in plan_display.columns if "($)" in col}
@@ -315,24 +372,61 @@ def planner(selected, full, dataset, context):
         "Proposed contribution ($)": st.column_config.NumberColumn(format="$ %.2f"),
         "Before-ad contribution multiplier": st.column_config.NumberColumn(format="%.2f")})
     st.caption("±15% sensitivity in contribution before ads is an illustrative assumption, not a confidence interval. The allocation is held fixed across these scenarios.")
+    settings = dict(budget=budget, flexibility=flexibility, saturation=saturation)
+    key = scope_key(context, st.session_state["data_fingerprint"], inputs)
+    st.subheader("Compare two budget scenarios")
+    st.caption("Save the current allocation as A. Change locks, limits, or saturation to explore B, keeping the same total budget and data filters.")
+    a, b = st.columns(2)
+    if a.button("Save current scenario as A", key="save_scenario_a", width="stretch"):
+        st.session_state["scenario_a"] = snapshot(plan, settings, key)
+    saved = st.session_state.get("scenario_a")
+    if saved and b.button("Clear scenario A", key="clear_scenario_a", width="stretch"):
+        st.session_state.pop("scenario_a", None)
+        saved = None
+    comparable = None
+    if saved:
+        try:
+            summary, allocation = compare(saved, plan, settings, key)
+            comparable = saved
+        except ValueError as exc:
+            st.info(str(exc))
+            if saved["scope"] == key:
+                st.button("Use A's total budget", on_click=use_saved_budget,
+                          args=(f"budget_{scope}", saved["settings"]["budget"]), key="restore_scenario_budget")
+        else:
+            result = "Modeled contribution at B's saturation ($)"
+            difference = summary[result].iloc[1] - summary[result].iloc[0]
+            st.write(f"**B minus A, at B's saturation: {money(difference)} modeled contribution.**".replace("$", r"\$"))
+            st.caption("Both fixed allocations are evaluated at B's current saturation assumption. A retains its saved locks and limits; it may not satisfy B's constraints. Changing an assumption alone does not create measured improvement.")
+            st.dataframe(summary, hide_index=True, width="stretch", column_config={
+                "Budget ($)": st.column_config.NumberColumn(format="$ %.2f"),
+                result: st.column_config.NumberColumn(format="$ %.2f")})
+            st.dataframe(allocation, hide_index=True, width="stretch", column_config={
+                col: st.column_config.NumberColumn(format="$ %.2f") for col in allocation if "($)" in col})
+            comparison_export = allocation.copy()
+            comparison_export["total_budget"] = budget
+            comparison_export["a_saturation_assumption"] = saved["settings"]["saturation"]
+            comparison_export["b_and_common_evaluation_saturation"] = saturation
+            comparison_export["a_maximum_change"] = saved["settings"]["flexibility"]
+            comparison_export["b_maximum_change"] = flexibility
+            comparison_export["a_locked"] = plan.campaign_id.map(saved["plan"].set_index("campaign_id").locked).to_numpy()
+            comparison_export["b_locked"] = plan.locked
+            comparison_export["result_type"] = "Fixed allocations evaluated under B's assumption; not measured improvement"
+            csv_download(comparison_export, "Export A and B allocations", "scenario-comparison.csv", "scenario_comparison_export")
+    else:
+        st.info("No saved scenario yet. Save A to begin; the snapshot stays in this session as you explore other views.")
     with st.expander("How the model works"):
         st.write("For each campaign, historical contribution before ads anchors a saturating exponential curve. The solver allocates a fixed budget to maximize summed modeled contribution within the limits and locks. Allocation is reconciled to cents.")
         st.code("before_ad(x) = baseline_before_ad * (1 - exp(-x / scale)) / (1 - exp(-baseline_spend / scale))\nscale = baseline_spend * saturation_assumption\ncontribution(x) = before_ad(x) - x", language="text")
         st.write("A recommendation to increase spend means the assumed curve has a higher marginal return within the current constraints. Historical outcomes are observational; the response shape and future stability have not been established by an experiment.")
-    export = plan.copy()
+    export = comparator.copy()
     export["saturation_assumption"] = saturation
     export["horizon_days"] = 7
     export["total_budget"] = budget
     export["result_type"] = "Assumption-based scenario; not a forecast"
     csv_download(export, "Export budget scenario and assumptions", "budget-scenario.csv", "plan_export")
-    recent_start = max(pd.Timestamp(context["start"]), pd.Timestamp(context["end"]) - pd.Timedelta(days=27))
-    earlier, ps, pe = previous_period(full, recent_start, context["end"], context["channels"], context["goals"], context["audiences"], context["mature"])
-    findings = investigations(selected.loc[selected.date >= recent_start], earlier)
-    comparison = f"Investigation evidence compares {recent_start:%Y-%m-%d}–{pd.Timestamp(context['end']):%Y-%m-%d} with {ps:%Y-%m-%d}–{pe:%Y-%m-%d}, using the same filters."
-    if ps < full.date.min():
-        comparison += " The preceding period has incomplete source coverage."
-    scenario = dict(budget=budget, flexibility=flexibility, saturation=saturation)
-    st.download_button("Download decision brief with this budget scenario", decision_brief(selected, dataset.manifest, context, findings, comparison, plan, scenario),
+    findings, comparison = investigation_window(selected, full, context)
+    st.download_button("Download decision brief with this budget scenario", decision_brief(selected, dataset.manifest, context, findings, comparison, plan, settings, comparable),
                        "campaign-compass-budget-brief.html", "text/html", key="planner_brief")
 
 
@@ -386,16 +480,21 @@ def main():
         reset_filters()
         st.session_state["data_fingerprint"] = fingerprint
     full = prepared(dataset)
+    with st.sidebar.expander("Guided demo · three decisions", expanded=True):
+        st.button("1 · High ROAS, losing money", on_click=guide, args=("economics", full), disabled=fingerprint != "default", width="stretch")
+        st.button("2 · Delayed purchases", on_click=guide, args=("delay", full), disabled=fingerprint != "default", width="stretch")
+        st.button("3 · Reallocate with constraints", on_click=guide, args=("budget", full), disabled=fingerprint != "default", width="stretch")
+        st.caption("Presets reset filters and saved A to tell the bundled synthetic story." if fingerprint == "default" else "Guided presets are available for the bundled demo only. Remove the uploaded ZIP to use them.")
     view = st.sidebar.radio("Explore", ["Overview", "Platform Comparison", "Campaign Details", "Time Series", "Budget Planner", "Data & Methodology"], key="view")
     st.sidebar.divider()
     st.sidebar.markdown("**Shared filters**")
     min_day, max_day = full.date.min().date(), full.date.max().date()
-    start = st.sidebar.date_input("Acquisition from", value=max(min_day, (pd.Timestamp(max_day) - pd.Timedelta(days=89)).date()), min_value=min_day, max_value=max_day, key="date_start")
-    end = st.sidebar.date_input("Acquisition through", value=max_day, min_value=min_day, max_value=max_day, key="date_end")
-    channels = st.sidebar.multiselect("Channels", sorted(full.channel.unique()), default=sorted(full.channel.unique()), key="channels")
-    goals = st.sidebar.multiselect("Campaign goals", sorted(full.goal.unique()), default=sorted(full.goal.unique()), key="goals")
-    audiences = st.sidebar.multiselect("Audiences", sorted(full.audience.unique()), default=sorted(full.audience.unique()), key="audiences")
-    mature = st.sidebar.checkbox("Fully observed cohorts only", key="mature", help="At least 56 days old for the demo's purchase and return windows.")
+    start = st.sidebar.date_input("Acquisition from", value=max(min_day, (pd.Timestamp(max_day) - pd.Timedelta(days=89)).date()), min_value=min_day, max_value=max_day, key="date_start", on_change=clear_guide)
+    end = st.sidebar.date_input("Acquisition through", value=max_day, min_value=min_day, max_value=max_day, key="date_end", on_change=clear_guide)
+    channels = st.sidebar.multiselect("Channels", sorted(full.channel.unique()), default=sorted(full.channel.unique()), key="channels", on_change=clear_guide)
+    goals = st.sidebar.multiselect("Campaign goals", sorted(full.goal.unique()), default=sorted(full.goal.unique()), key="goals", on_change=clear_guide)
+    audiences = st.sidebar.multiselect("Audiences", sorted(full.audience.unique()), default=sorted(full.audience.unique()), key="audiences", on_change=clear_guide)
+    mature = st.sidebar.checkbox("Fully observed cohorts only", key="mature", help="At least 56 days old for the demo's purchase and return windows.", on_change=clear_guide)
     st.sidebar.button("Reset filters", on_click=reset_filters, width="stretch")
     st.sidebar.caption("An empty channel, audience, or goal selection means no results.")
     source = "SYNTHETIC DEMO" if dataset.manifest["synthetic"] else "UPLOADED DATA"
@@ -405,8 +504,13 @@ def main():
         return
     selected = filter_facts(full, start, end, channels, goals, audiences, mature)
     previous, prior_start, prior_end = previous_period(full, start, end, channels, goals, audiences, mature)
+    analysis_start, analysis_end, _, _ = comparison_dates(full, start, end, mature)
+    expected = max(0, (analysis_end - analysis_start).days + 1)
+    comparison_label = f"Comparison: {analysis_start:%b %d, %Y}–{analysis_end:%b %d, %Y} versus {prior_start:%b %d, %Y}–{prior_end:%b %d, %Y} ({expected} calendar days each)."
     context = dict(start=start, end=end, channels=channels, goals=goals, audiences=audiences, mature=mature,
-                   prior_complete=prior_start >= full.date.min() and not previous.empty)
+                   fingerprint=fingerprint,
+                   analysis_end=analysis_end, analysis_start=analysis_start, comparison_label=comparison_label,
+                   prior_complete=expected > 0 and previous.date.nunique() == expected and selected.date.nunique() == expected)
     st.markdown(f'<p class="scope">{start:%b %d, %Y} – {end:%b %d, %Y} · {selected.campaign_id.nunique()} campaigns · {len(selected):,} daily creative records · observed through {html.escape(dataset.manifest["as_of"])}</p>', unsafe_allow_html=True)
     if view == "Data & Methodology":
         methodology(dataset, full)
@@ -414,14 +518,22 @@ def main():
     if selected.empty:
         st.info("No data for selected filters. Adjust the dates, select a channel/audience/goal, or reset filters.")
         return
+    data_coverage(selected, context)
+    if st.session_state.get("guided_step"):
+        hints = {"economics": "Decision 1 · Inspect Last chance packs: high ROAS can coexist with a contribution loss. These cohorts have fully observed purchase and return windows.",
+                 "delay": "Decision 2 · Follow Pinterest purchases at equal cohort ages. Expand the denominators to see which cohorts enter each point.",
+                 "budget": "Decision 3 · Save the starting plan as A, lock Summit essentials, then compare B and download a brief carrying both allocations."}
+        st.info(hints[st.session_state["guided_step"]])
+    if view in ["Overview", "Campaign Details"]:
+        st.caption(comparison_label)
     if not context["prior_complete"] and view in ["Overview", "Campaign Details"]:
-        st.caption("The preceding period has incomplete source coverage; overview deltas are hidden and available driver values are descriptive only.")
+        st.caption("The selected or preceding period has incomplete source coverage; overview deltas are hidden and available driver values are descriptive only.")
     if view == "Overview":
         overview(selected, previous, full, dataset, context)
     elif view == "Platform Comparison":
         platforms(selected)
     elif view == "Campaign Details":
-        campaigns(selected, previous)
+        campaigns(selected, previous, context)
     elif view == "Time Series":
         trends(selected, dataset)
     elif view == "Budget Planner":

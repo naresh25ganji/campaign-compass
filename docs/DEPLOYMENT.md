@@ -16,6 +16,6 @@ Chrome smoke checks confirmed all six views, campaign investigation navigation, 
 
 Community Cloud may select `uv.lock` when installing dependencies; it is committed alongside the pinned `requirements.txt`. The app finds source tables relative to `app.py`.
 
-After deployment, verify all six views, reset filters, click an investigation, change a budget lock, download both briefs, and open the downloaded files. Then add the confirmed live URL to the README and submission document. Do not submit localhost as the public app link.
+After deployment, verify all six views, reset filters, click an investigation, and run the three guided presets. With mature-only filtering, check that the comparison uses 34 selected days and 34 prior days. Save a budget scenario as A, change a lock for B, and confirm equal totals and visible settings. Change the total to verify comparison is withheld, then restore A's total. Download the brief and confirm it includes coverage, both allocations, and a baseline satisfying the current constraints. Do not submit localhost as the public app link.
 
 Official guide: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app

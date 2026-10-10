@@ -10,7 +10,7 @@ An original Week 1 option 2 project for a fictional retailer, **Northstar Outdoo
 
 ## A decision worth investigating
 
-An impressive revenue multiple can hide losses after product costs, discounts, and returns. Start with **Last chance packs**, inspect its contribution, compare purchase outcomes at equal ages, then explore a constrained budget scenario. Download a decision brief to share the evidence and assumptions.
+An impressive revenue multiple can hide losses after product costs, discounts, and returns. Use the three **Guided demo** presets to inspect **Last chance packs**, compare purchase outcomes at equal ages, and explore a constrained budget scenario. Save an allocation as A, change constraints for B, then download a decision brief with both plans and their assumptions.
 
 ![Overview with campaign economics, clicks, conversions, and contribution ROI](docs/images/overview.png)
 
@@ -42,14 +42,14 @@ streamlit run app.py --server.address 127.0.0.1
 - **Platform Comparison:** channel economics within shared goal and audience filters.
 - **Campaign Details:** literal search, cost breakdown, prior-period drivers, and creative engagement.
 - **Time Series:** daily/weekly metrics and equal-age purchase curves with visible denominators.
-- **Budget Planner:** seven-day allocation, constraints, locks, assumed saturation, sensitivity, CSV export, and a decision brief with the current scenario.
+- **Budget Planner:** seven-day allocation, constraints, locks, assumed saturation, sensitivity, a baseline satisfying the same constraints, saved A/B comparison, CSV exports, and a decision brief carrying both scenarios.
 - **Data & Methodology:** provenance, formulas, validation, and dataset ZIP import/export.
 
-Date, channel, goal, audience, and fully observed-cohort filters are shared. Empty selections mean no results. Reset restores data-derived defaults. Investigation links preserve filter context.
+Date, channel, goal, audience, and fully observed-cohort filters are shared. Empty selections mean no results. Reset restores data-derived defaults. Investigation links preserve filter context. Every analysis view shows eligible dates, fully observed dates, and spend whose outcomes may still develop. Mature-only comparisons use equally long selected and preceding windows; dates are visible and incomplete coverage suppresses overview deltas.
 
 ## Share a decision brief
 
-The Overview exports an HTML brief with current filters, observed totals, campaign economics, and investigation evidence. Budget Planner adds its current budget, limits, locks, allocations, comparator, and sensitivity assumptions. Open the downloaded file in a browser to share or print it. Report content is generated from the selected records without an external AI service.
+The Overview exports an HTML brief with current filters, observation coverage, observed totals, campaign economics, and investigation evidence. Budget Planner adds its current budget, limits, locks, allocations, constraint-matched baseline, and sensitivity assumptions. If a comparable A is saved, both allocations and settings are included. A/B comparisons require the same data scope and total budget and evaluate both fixed allocations at B's current saturation assumption. Open the downloaded file in a browser to share or print it. Report content is generated from the selected records without an external AI service.
 
 ## Data and definitions
 
@@ -78,7 +78,7 @@ See [the dataset contract](docs/DATA_CONTRACT.md), [demo storyboard](docs/DEMO.m
 uv run pytest -q
 ```
 
-Tests reconcile the order ledger, check spend-preserving joins, weighted ratios, invalid uploads, cohort eligibility, allocation constraints, and app interactions.
+The 48 tests reconcile the order ledger, check spend-preserving joins, weighted ratios, invalid uploads, equal-duration maturity comparisons, coverage, allocation constraints, saved scenarios, brief exports, and app interactions.
 
 ```text
 app.py                         Streamlit interface
@@ -86,6 +86,7 @@ campaign_compass/generate.py    Original seeded dataset generator
 campaign_compass/data.py        Validation and ZIP import/export
 campaign_compass/analytics.py   Facts, metrics, cohorts, investigations
 campaign_compass/planner.py     Response model and constrained allocation
+campaign_compass/scenarios.py   Saved allocations and comparable A/B evaluation
 campaign_compass/brief.py       Self-contained HTML decision brief
 campaign_compass/charts.py      Chart styling and units
 data/                          Source tables and manifest
@@ -93,4 +94,4 @@ docs/                          Data contract, demo, development evidence
 tests/                         Analytics, planner, and interaction tests
 ```
 
-Randomized experiments, customer-level CAC deduplication, real platform connectors, automated screenshot capture, and deployment are not implemented. Run the app locally using the instructions above; website hosting is a separate step.
+Randomized experiments, customer-level CAC deduplication, real platform connectors, and automated screenshot capture are outside this version. The public Streamlit app is deployed; pushes to `main` update it automatically.

@@ -4,8 +4,9 @@ from __future__ import annotations
 from html import escape
 import math
 
-from .analytics import aggregate, metrics
-from .planner import response
+from .analytics import aggregate, coverage, metrics
+from .planner import feasible_baseline
+from .scenarios import compare, scope_key
 
 
 def text(value):
@@ -13,7 +14,7 @@ def text(value):
 
 
 def money(value):
-    return "—" if not math.isfinite(value) else f"{'−' if value < 0 else ''}${abs(value):,.2f}"
+    return "—" if not math.isfinite(value) else f"{'−' if round(value, 2) < 0 else ''}${abs(value):,.2f}"
 
 
 def percent(value):
@@ -25,11 +26,12 @@ def table(headers, rows):
         "<tr>" + "".join(f"<td>{text(v)}</td>" for v in row) + "</tr>" for row in rows) + "</tbody></table>"
 
 
-def decision_brief(selected, manifest, context, findings, comparison, plan=None, scenario=None):
+def decision_brief(selected, manifest, context, findings, comparison, plan=None, scenario=None, saved_scenario=None):
     """Export observations in current scope; optionally include the actual planner scenario."""
     m = metrics(selected)
     scope = table(["Selection", "Value"], [
         ("Acquisition dates", f"{context['start']} through {context['end']}"),
+        ("Included acquisition dates", "None" if selected.empty else f"{selected.date.min():%Y-%m-%d} through {selected.date.max():%Y-%m-%d}"),
         ("Channels", ", ".join(context['channels'])), ("Goals", ", ".join(context['goals'])),
         ("Audiences", ", ".join(context['audiences'])),
         ("Cohorts", "At least 56 days old" if context['mature'] else "All selected ages"),
@@ -49,6 +51,15 @@ def decision_brief(selected, manifest, context, findings, comparison, plan=None,
     recent_spend = selected.loc[selected.cohort_age.lt(56), 'spend'].sum()
     observation_note = (f"{percent(recent_spend / m['spend']) if m['spend'] else '—'} of selected spend belongs to cohorts under 56 days old. "
                         "Their purchases or returns may still develop.")
+    c = coverage(selected, context['start'], context['end'], context.get('analysis_end', context['end']))
+    coverage_table = table(["Coverage", "Value"], [
+        ("Acquisition days with records / eligible calendar days", f"{c['days']} / {c['eligible_days']}"),
+        ("Requested calendar days", str(c['requested_days'])),
+        ("Fully observed acquisition days", str(c['mature_days'])),
+        ("Spend under 21 days: purchases and returns may develop", money(c['purchase_spend'])),
+        ("Spend 21–55 days: returns may develop", money(c['return_spend'])),
+        ("Spend 56+ days: fully observed under demo rule", money(c['mature_spend'])),
+    ])
     economics = aggregate(selected, ['campaign_id', 'campaign_name', 'channel', 'goal']).sort_values('contribution')
     campaigns = table(["Campaign", "Channel", "Goal", "Spend", "Purchases", "Net ROAS", "Contribution", "Contribution ROI"], [
         (r.campaign_name, r.channel, r.goal, money(r.spend), f"{r.purchases:,.0f}",
@@ -57,29 +68,42 @@ def decision_brief(selected, manifest, context, findings, comparison, plan=None,
     planning = "<p>No budget scenario is included. Download a brief from Budget Planner to include its current settings and allocation.</p>"
     if plan is not None and scenario is not None:
         budget = scenario['budget']
-        proportional = plan.baseline_spend.to_numpy() * budget / plan.baseline_spend.sum()
-        comparator = float(response(proportional, plan.baseline_spend, plan.baseline_before_ad, scenario['saturation']).sum() - budget)
+        baseline = feasible_baseline(plan, budget, scenario['saturation'])
+        comparator = float(baseline.comparator_contribution.sum())
         proposed = float(plan.proposed_contribution.sum())
         settings = table(["Assumption or result", "Value"], [
             ("Planning horizon", "7 days"), ("Total sales budget", money(budget)),
             ("Maximum campaign change", percent(scenario['flexibility'])),
             ("Saturation assumption", f"{scenario['saturation']:.2f}× baseline spend"),
-            ("Modeled contribution", money(proposed)), ("Same-budget proportional comparator", money(comparator)),
+            ("Modeled contribution", money(proposed)), ("Constraint-matched baseline contribution", money(comparator)),
             ("Modeled difference", money(proposed - comparator)),
             ("Locked campaigns", ", ".join(plan.loc[plan.locked, 'campaign_name']) or "None"),
         ])
         allocation = table(["Campaign", "Channel", "Observed days", "Baseline", "Proposed", "Change", "Minimum", "Maximum", "Locked"], [
             (r.campaign_name, r.channel, f"{r.observed_days:.0f}", money(r.baseline_spend), money(r.proposed_spend),
              money(r.change), money(r.lower_bound), money(r.upper_bound), "Yes" if r.locked else "No") for r in plan.itertuples()])
+        baseline_table = table(["Campaign", "Constraint-matched baseline spend", "Proposed spend"], [
+            (r.campaign_name, money(r.comparator_spend), money(r.proposed_spend)) for r in baseline.itertuples()])
         sensitivity = table(["Before-ad assumption", "Modeled contribution"], [
             (name, money(float(plan.proposed_before_ad.sum() * factor - budget)))
             for name, factor in [('Downside −15%', .85), ('Base', 1), ('Upside +15%', 1.15)]])
         planning = (settings + "<p>Calibration uses selected sales cohorts at least 56 days old, with 7 observed days, "
                     "20 purchases, and positive contribution before ads. Excluded campaigns receive no allocation in this scenario. "
                     "Locks retain the rounded historical seven-day baseline.</p>" + allocation +
+                    "<h3>Baseline with the same constraints</h3><p>Historical proportions are scaled and clipped to the same budget, limits, and locks as the proposed allocation. Both use the same saturation assumption.</p>" + baseline_table +
                     "<h3>Sensitivity with allocation held fixed</h3>" + sensitivity +
                     "<p>These are assumption-based scenarios, not forecasts, confidence intervals, or measured incremental lift. "
-                    "The proportional comparator uses the same total budget but may not satisfy the locks.</p>")
+                    "The baseline satisfies the same total budget, campaign limits, and locks.</p>")
+        if saved_scenario is not None:
+            summary, allocations = compare(saved_scenario, plan, scenario, scope_key(context, context.get('fingerprint', 'default'), plan))
+            result = "Modeled contribution at B's saturation ($)"
+            summary_table = table(["Scenario", "Budget", "Maximum change", "Saved saturation", "Locked campaigns", "Contribution at B's saturation"], [
+                (r['Scenario'], money(r['Budget ($)']), f"{r['Maximum change (%)']:.0f}%", f"{r['Saturation assumption']:.2f}×", r['Locked campaigns'], money(r[result]))
+                for r in summary.to_dict('records')])
+            allocation_table = table(["Campaign", "Channel", "A spend", "B spend", "B minus A"], [
+                (r['Campaign'], r['Channel'], money(r['A spend ($)']), money(r['B spend ($)']), money(r['B minus A ($)']))
+                for r in allocations.to_dict('records')])
+            planning += ("<h3>Saved scenario A versus current B</h3><p>Both fixed allocations use the same total budget and data scope and are evaluated at B's current saturation assumption. A retains its saved locks and limits; it may not satisfy B's constraints. These are model outputs, not measured improvements.</p>" + summary_table + allocation_table)
     return f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Campaign Compass decision brief</title><style>
 body{{font:15px/1.55 Arial,sans-serif;color:#18283b;background:#f7f8fa;margin:0}}main{{max-width:1120px;margin:32px auto;padding:40px;background:white}}
@@ -90,7 +114,7 @@ table{{border-collapse:collapse;width:100%;margin:16px 0;font-size:13px}}th,td{{
 @page{{size:A4 landscape;margin:16mm}}
 </style></head><body><main><p class="label">CAMPAIGN COMPASS · {text('SYNTHETIC DEMO' if manifest['synthetic'] else 'UPLOADED DATA')}</p>
 <h1>Campaign performance decision brief</h1><p>{text(manifest.get('brand', 'Uploaded dataset'))}. Review campaign economics, investigate observed changes, and share the next budget scenario.</p>
-<h2>Selection and observation window</h2>{scope}<h2>Performance in the selected scope</h2>{totals}<p>{text(observation_note)}</p>
+<h2>Selection and observation window</h2>{scope}<p>{text(context.get('comparison_label', ''))}</p><h2>Observation coverage</h2>{coverage_table}<p>Day counts show dates with records across selected campaigns; they do not certify every campaign has complete daily coverage. Developing spend is not an estimate of missing revenue or refunds.</p><h2>Performance in the selected scope</h2>{totals}<p>{text(observation_note)}</p>
 <h2>Investigate next</h2><p>{text(comparison)} Evidence rules flag hypotheses, not statistical significance.</p>{observations}
 <h2>Campaign economics</h2><p>Sorted by contribution after ads. Compare similar campaign goals when interpreting acquisition metrics.</p>{campaigns}
 <h2>Budget scenario</h2>{planning}
