@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import html
+from datetime import timedelta
 from pathlib import Path
 
 import numpy as np
@@ -81,7 +82,7 @@ def guide(step, full):
         if key.startswith("budget_"):
             st.session_state.pop(key, None)
     end = full.date.max().date()
-    st.session_state.update(date_start=max(full.date.min().date(), (pd.Timestamp(end) - pd.Timedelta(days=89)).date()),
+    st.session_state.update(date_start=max(full.date.min().date(), (pd.Timestamp(end) - timedelta(days=89)).date()),
                             date_end=end, channels=sorted(full.channel.unique()), goals=["Sales"],
                             audiences=sorted(full.audience.unique()), mature=False, guided_step=step)
     if step == "economics":
@@ -119,7 +120,7 @@ def data_coverage(selected, context):
 
 def investigation_window(selected, full, context):
     end = context["analysis_end"]
-    recent_start = max(pd.Timestamp(context["start"]), end - pd.Timedelta(days=27))
+    recent_start = max(pd.Timestamp(context["start"]), end - timedelta(days=27))
     recent = selected.loc[selected.date.between(recent_start, end)]
     earlier, ps, pe = previous_period(full, recent_start, end, context["channels"], context["goals"], context["audiences"], context["mature"])
     expected = (pe - ps).days + 1
@@ -489,7 +490,7 @@ def main():
     st.sidebar.divider()
     st.sidebar.markdown("**Shared filters**")
     min_day, max_day = full.date.min().date(), full.date.max().date()
-    start = st.sidebar.date_input("Acquisition from", value=max(min_day, (pd.Timestamp(max_day) - pd.Timedelta(days=89)).date()), min_value=min_day, max_value=max_day, key="date_start", on_change=clear_guide)
+    start = st.sidebar.date_input("Acquisition from", value=max(min_day, (pd.Timestamp(max_day) - timedelta(days=89)).date()), min_value=min_day, max_value=max_day, key="date_start", on_change=clear_guide)
     end = st.sidebar.date_input("Acquisition through", value=max_day, min_value=min_day, max_value=max_day, key="date_end", on_change=clear_guide)
     channels = st.sidebar.multiselect("Channels", sorted(full.channel.unique()), default=sorted(full.channel.unique()), key="channels", on_change=clear_guide)
     goals = st.sidebar.multiselect("Campaign goals", sorted(full.goal.unique()), default=sorted(full.goal.unique()), key="goals", on_change=clear_guide)

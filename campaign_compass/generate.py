@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import timedelta
 from pathlib import Path
 
 import numpy as np
@@ -67,7 +68,7 @@ def generate(seed: int = SEED) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame
                                         impressions=impressions, clicks=clicks, sessions=sessions))
                 for _ in range(eventual_purchases):
                     delay = int(min(21, rng.geometric(.20 if channel == "Pinterest" else .44) - 1))
-                    order_day = day + pd.Timedelta(days=delay)
+                    order_day = day + timedelta(days=delay)
                     if order_day > AS_OF:
                         continue  # Future outcomes are not observed or counted.
                     serial += 1
@@ -75,7 +76,7 @@ def generate(seed: int = SEED) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame
                     discount = round(gross * (.14 if i == 1 else rng.uniform(0, .06)), 2)
                     paid = round(gross - discount, 2)
                     product = round(gross * cost, 2)
-                    refund_day = order_day + pd.Timedelta(days=int(rng.integers(7, 36)))
+                    refund_day = order_day + timedelta(days=int(rng.integers(7, 36)))
                     returned = rng.random() < refund_p and refund_day <= AS_OF
                     refund = paid if returned else 0.0
                     recovery = round(product * .72, 2) if returned else 0.0

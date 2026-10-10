@@ -1,6 +1,7 @@
 """All views share the same acquisition-cohort facts and metric definitions."""
 from __future__ import annotations
 
+from datetime import timedelta
 import numpy as np
 import pandas as pd
 
@@ -73,10 +74,10 @@ def comparison_dates(all_facts, start, end, mature_only=False):
     start, end = pd.Timestamp(start), pd.Timestamp(end)
     if mature_only and not all_facts.empty:
         as_of = (all_facts.date + pd.to_timedelta(all_facts.cohort_age, unit="D")).max()
-        end = min(end, as_of - pd.Timedelta(days=56))
+        end = min(end, as_of - timedelta(days=56))
     days = max(0, (end - start).days + 1)
-    prior_end = start - pd.Timedelta(days=1)
-    prior_start = prior_end - pd.Timedelta(days=max(0, days - 1))
+    prior_end = start - timedelta(days=1)
+    prior_start = prior_end - timedelta(days=max(0, days - 1))
     return start, end, prior_start, prior_end
 
 
