@@ -18,7 +18,7 @@ An impressive revenue multiple can hide losses after product costs, discounts, a
 
 ## Start locally
 
-Python 3.11 or newer is required. No API key, database, or paid service is needed.
+Use Python 3.12 to match the hosted app and pinned dependencies. No API key, database, or paid service is needed.
 
 ```bash
 git clone https://github.com/naresh25ganji/campaign-compass.git

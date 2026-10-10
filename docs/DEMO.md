@@ -12,3 +12,5 @@ Show a complete decision journey. All bundled results are synthetic illustration
 Capture actual prompts, screenshots, bugs/fixes, and final screens during development. Do not invent model accuracy, experimental evidence, user feedback, or advertising results.
 
 The assignment requires a Google Doc, a live demo video up to five minutes, and a GitHub code link by October 11, 2026 at 11:59 PM PT.
+
+The submission form requires a **Video Demo Drive Link**. Upload the finished recording to Google Drive, give viewers link access, and check that it plays while signed out. The form also requires full name, email, GitHub repository link, and the project documentation Drive link. The documentation is ready; the recording and form submission remain.
