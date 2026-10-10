@@ -67,9 +67,16 @@ def chart(fig, key, description):
     st.plotly_chart(fig, width="stretch", key=key, config={"displayModeBar": False}, alt=description)
 
 
-def reset_filters():
+def reset_filters(full):
     for key in ["date_start", "date_end", "channels", "goals", "audiences", "mature", "campaign_pick", "campaign_search", "locked", "guided_step", "scenario_a"]:
         st.session_state.pop(key, None)
+    # Explicit values also reset the browser widgets; deleting keys alone
+    # can reset server results while leaving the visible controls unchanged.
+    end = full.date.max().date()
+    st.session_state.update(
+        date_start=max(full.date.min().date(), (pd.Timestamp(end) - timedelta(days=89)).date()),
+        date_end=end, channels=sorted(full.channel.unique()), goals=sorted(full.goal.unique()),
+        audiences=sorted(full.audience.unique()), mature=False, campaign_search="", locked=[])
 
 
 def clear_guide():
@@ -77,7 +84,7 @@ def clear_guide():
 
 
 def guide(step, full):
-    reset_filters()
+    reset_filters(full)
     for key in list(st.session_state):
         if key.startswith("budget_"):
             st.session_state.pop(key, None)
@@ -91,6 +98,15 @@ def guide(step, full):
         st.session_state.update(view="Time Series", channels=["Pinterest"], trend_metric="Purchases", trend_group="Week")
     else:
         st.session_state.update(view="Budget Planner", flexibility=35, saturation=1.5)
+        inputs = planning_inputs(filter_facts(full, st.session_state["date_start"], end,
+                                  st.session_state["channels"], ["Sales"], st.session_state["audiences"]))
+        if not inputs.empty:
+            st.session_state[budget_widget_key(inputs)] = round(float(inputs.baseline_spend.sum()), 2)
+
+
+def budget_widget_key(inputs):
+    scope = hashlib.sha256(inputs[["campaign_id", "baseline_spend"]].to_csv(index=False).encode()).hexdigest()[:10]
+    return f"budget_{scope}"
 
 
 def use_saved_budget(key, budget):
@@ -328,8 +344,9 @@ def planner(selected, full, dataset, context):
     baseline = float(inputs.baseline_spend.sum())
     a, b, c = st.columns(3)
     # Namespace budget by campaign set and baseline so filters cannot silently retain an unrelated total.
-    scope = hashlib.sha256(inputs[["campaign_id", "baseline_spend"]].to_csv(index=False).encode()).hexdigest()[:10]
-    budget = a.number_input("Seven-day sales budget ($)", min_value=1.0, value=round(baseline, 2), step=100.0, key=f"budget_{scope}")
+    budget_key = budget_widget_key(inputs)
+    st.session_state.setdefault(budget_key, round(baseline, 2))
+    budget = a.number_input("Seven-day sales budget ($)", min_value=1.0, value=st.session_state[budget_key], step=100.0, key=budget_key)
     flexibility = b.slider("Maximum change per campaign", 0, 100, 35, step=5, format="%d%%", key="flexibility") / 100
     saturation = c.slider("Saturation assumption", .5, 4.0, 1.5, .1, key="saturation",
                           help="Curve scale as a multiple of baseline spend. Smaller values assume stronger diminishing returns; this parameter is not learned from the data.")
@@ -393,7 +410,7 @@ def planner(selected, full, dataset, context):
             st.info(str(exc))
             if saved["scope"] == key:
                 st.button("Use A's total budget", on_click=use_saved_budget,
-                          args=(f"budget_{scope}", saved["settings"]["budget"]), key="restore_scenario_budget")
+                          args=(budget_key, saved["settings"]["budget"]), key="restore_scenario_budget")
         else:
             result = "Modeled contribution at B's saturation ($)"
             difference = summary[result].iloc[1] - summary[result].iloc[0]
@@ -477,10 +494,10 @@ def main():
             st.sidebar.error(str(exc))
             dataset = st.session_state.get("last_valid_dataset", dataset)
             fingerprint = st.session_state.get("last_valid_fingerprint", "default")
-    if st.session_state.get("data_fingerprint") != fingerprint:
-        reset_filters()
-        st.session_state["data_fingerprint"] = fingerprint
     full = prepared(dataset)
+    if st.session_state.get("data_fingerprint") != fingerprint:
+        reset_filters(full)
+        st.session_state["data_fingerprint"] = fingerprint
     with st.sidebar.expander("Guided demo · three decisions", expanded=True):
         st.button("1 · High ROAS, losing money", on_click=guide, args=("economics", full), disabled=fingerprint != "default", width="stretch")
         st.button("2 · Delayed purchases", on_click=guide, args=("delay", full), disabled=fingerprint != "default", width="stretch")
@@ -490,13 +507,13 @@ def main():
     st.sidebar.divider()
     st.sidebar.markdown("**Shared filters**")
     min_day, max_day = full.date.min().date(), full.date.max().date()
-    start = st.sidebar.date_input("Acquisition from", value=max(min_day, (pd.Timestamp(max_day) - timedelta(days=89)).date()), min_value=min_day, max_value=max_day, key="date_start", on_change=clear_guide)
-    end = st.sidebar.date_input("Acquisition through", value=max_day, min_value=min_day, max_value=max_day, key="date_end", on_change=clear_guide)
-    channels = st.sidebar.multiselect("Channels", sorted(full.channel.unique()), default=sorted(full.channel.unique()), key="channels", on_change=clear_guide)
-    goals = st.sidebar.multiselect("Campaign goals", sorted(full.goal.unique()), default=sorted(full.goal.unique()), key="goals", on_change=clear_guide)
-    audiences = st.sidebar.multiselect("Audiences", sorted(full.audience.unique()), default=sorted(full.audience.unique()), key="audiences", on_change=clear_guide)
+    start = st.sidebar.date_input("Acquisition from", value=st.session_state["date_start"], min_value=min_day, max_value=max_day, key="date_start", on_change=clear_guide)
+    end = st.sidebar.date_input("Acquisition through", value=st.session_state["date_end"], min_value=min_day, max_value=max_day, key="date_end", on_change=clear_guide)
+    channels = st.sidebar.multiselect("Channels", sorted(full.channel.unique()), key="channels", on_change=clear_guide)
+    goals = st.sidebar.multiselect("Campaign goals", sorted(full.goal.unique()), key="goals", on_change=clear_guide)
+    audiences = st.sidebar.multiselect("Audiences", sorted(full.audience.unique()), key="audiences", on_change=clear_guide)
     mature = st.sidebar.checkbox("Fully observed cohorts only", key="mature", help="At least 56 days old for the demo's purchase and return windows.", on_change=clear_guide)
-    st.sidebar.button("Reset filters", on_click=reset_filters, width="stretch")
+    st.sidebar.button("Reset filters", on_click=reset_filters, args=(full,), width="stretch")
     st.sidebar.caption("An empty channel, audience, or goal selection means no results.")
     source = "SYNTHETIC DEMO" if dataset.manifest["synthetic"] else "UPLOADED DATA"
     st.markdown(f'<p class="eyebrow">CAMPAIGN COMPASS / {source}</p>', unsafe_allow_html=True)

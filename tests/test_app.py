@@ -78,6 +78,12 @@ def test_guided_presets_set_the_intended_filters_and_view():
     assert app.radio(key='view').value == 'Campaign Details'
     assert app.selectbox(key='campaign_pick').value == 'NC-02'
     assert app.checkbox(key='mature').value is True
+    next(b for b in app.button if b.label == 'Reset filters').click().run()
+    assert app.multiselect(key='goals').value == ['Awareness', 'Sales']
+    assert app.checkbox(key='mature').value is False
+    assert len(app.multiselect(key='channels').value) == 4
+    app.radio(key='view').set_value('Overview').run()
+    assert next(m for m in app.metric if m.label == 'Ad spend').value == '$160,461'
     next(b for b in app.button if b.label == '2 · Delayed purchases').click().run()
     assert app.radio(key='view').value == 'Time Series'
     assert app.multiselect(key='channels').value == ['Pinterest']
@@ -85,6 +91,11 @@ def test_guided_presets_set_the_intended_filters_and_view():
     next(b for b in app.button if b.label == '3 · Reallocate with constraints').click().run()
     assert app.radio(key='view').value == 'Budget Planner'
     assert len(app.multiselect(key='channels').value) == 4
+    budget = app.number_input[0].value
+    app.number_input[0].set_value(budget + 100).run()
+    next(b for b in app.button if b.label == '3 · Reallocate with constraints').click().run()
+    assert app.number_input[0].value == budget
+    assert not app.multiselect(key='locked').value
     assert not app.exception
 
 
