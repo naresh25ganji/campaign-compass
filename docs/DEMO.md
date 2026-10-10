@@ -14,3 +14,20 @@ Capture actual prompts, screenshots, bugs/fixes, and final screens during develo
 The assignment requires a Google Doc, a live demo video up to five minutes, and a GitHub code link by October 11, 2026 at 11:59 PM PT.
 
 The submission form requires a **Video Demo Drive Link**. Upload the finished recording to Google Drive, give viewers link access, and check that it plays while signed out. The form also requires full name, email, GitHub repository link, and the project documentation Drive link. The documentation is ready; the recording and form submission remain.
+
+## Verified recording reference
+
+Validated against local and hosted screens on October 10 using the bundled dataset observed through September 30. Start with no uploaded data, reset filters, and select Overview. Follow presets in order; save A only after selecting preset 3. Keep the preset budget, 35% maximum change, and 1.50× saturation unchanged before locking Summit essentials.
+
+| Moment | Expected value |
+| --- | --- |
+| Default Overview | 263,453 clicks; 6,477 purchases; 5.83× ROAS; 130.2% contribution ROI |
+| Last chance packs | 10.68× ROAS; USD 12,861.97 contribution loss; 34 fully observed days |
+| Pinterest day 7 | 994 purchases / 40,436 sessions; 2.46% session conversion |
+| Pinterest day 21 | 977 purchases / 33,026 sessions; 2.96% session conversion; different eligible population |
+| Both scenario budgets | USD 8,226.77 |
+| Summit essentials locked in B | USD 1,494.36 |
+| Modeled contribution A / B | USD 19,157.35 / USD 19,115.29 |
+| B minus A | −USD 42.06, displayed rounded as −USD 42 |
+
+The top budget card rounds to USD 8,227 while the input and comparison table retain USD 8,226.77. The narration rounds the campaign loss to USD 12,862 and lock cost to USD 42. These model outputs illustrate assumptions, not measured improvement. Dataset hashes and verification scope are recorded in [VALIDATION.json](VALIDATION.json).

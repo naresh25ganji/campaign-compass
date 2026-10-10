@@ -1,0 +1,98 @@
+{
+  "verified_on": "2026-10-10",
+  "application_commit": "d45c8a08f7c4b821636bb7f249d1f6a3509b7107",
+  "live_app": "https://campaign-compass.streamlit.app/",
+  "data_as_of": "2026-09-30",
+  "synthetic": true,
+  "dataset_rows": {
+    "campaigns": 12,
+    "performance": 4320,
+    "orders": 13365
+  },
+  "dataset_download_comparison": {
+    "source": "Complete ZIP downloaded through Chrome from local and hosted Data & Methodology views, compared to a fresh local export",
+    "result": "All four ZIP members byte-identical; ZIP container timestamps excluded",
+    "sha256": {
+      "campaigns.csv": "222095b3144f6e923696d9b1202c1da05d032aba156f073efb5120b17146be29",
+      "performance.csv": "d13cda3b488ab31860e33467e467b4162a3a24f8c2f22dc7384e17128ac76f34",
+      "orders.csv": "2afd18739416e5413e92185d1a912d850b9b1bf0ca272de49723b5d589793053",
+      "manifest.json": "f889b05ae2e8d364633816df5da7fda453cd3998b2c421c83eb62dd3b3c03c1d"
+    }
+  },
+  "ui_comparison": {
+    "views_checked": [
+      "Overview",
+      "Platform Comparison",
+      "Campaign Details",
+      "Time Series",
+      "Budget Planner",
+      "Data & Methodology"
+    ],
+    "default_date_range": [
+      "2026-07-03",
+      "2026-09-30"
+    ],
+    "overview_and_guided_presets": "Displayed local and hosted values match",
+    "budget_precision": "Platform floating-point difference below 0.000001 USD; displayed cent values match",
+    "platform_csv_comparison": "All columns match with absolute tolerance 1e-6 and relative tolerance 1e-12"
+  },
+  "recording_reference": {
+    "overview_spend": 160460.85,
+    "overview_net_revenue": 935171.74,
+    "overview_contribution": 208906.04,
+    "overview_clicks": 263453,
+    "overview_purchases": 6477,
+    "overview_roas_display": "5.83×",
+    "overview_contribution_roi_display": "130.2%",
+    "first_preset_roas_display": "10.68×",
+    "first_preset_contribution": -12861.97,
+    "first_preset_windows": [
+      "2026-07-03",
+      "2026-08-05",
+      "2026-05-30",
+      "2026-07-02"
+    ],
+    "pinterest_day_7": {
+      "purchases": 994,
+      "sessions": 40436,
+      "cvr_display": "2.46%"
+    },
+    "pinterest_day_21": {
+      "purchases": 977,
+      "sessions": 33026,
+      "cvr_display": "2.96%",
+      "note": "Eligible population differs from day 7"
+    },
+    "budget": {
+      "total": 8226.77,
+      "maximum_change": 0.35,
+      "saturation": 1.5,
+      "summit_locked": 1494.36,
+      "a_modeled_contribution": 19157.35,
+      "b_modeled_contribution": 19115.29,
+      "b_minus_a": -42.06
+    }
+  },
+  "verification": {
+    "tests": 48,
+    "local_deprecation_warnings_as_errors": true,
+    "dependency_check": "uv pip check passed",
+    "lock_check": "uv lock --check passed",
+    "code_ci": "https://github.com/naresh25ganji/campaign-compass/actions/runs/38089027897",
+    "live_exports": "A/B CSV and independently opened HTML brief match exact budgets, lock and modeled contribution",
+    "anonymous_live_app": "Chrome Incognito loaded expected default overview"
+  },
+  "submission": {
+    "documentation": "https://docs.google.com/document/d/1I9vvA-vBouXuC7FkrOC8pHdSmawLhmBhW14FNMcmf8s/edit",
+    "documentation_access": "Anonymous viewer verified in Chrome Incognito",
+    "document_visual_review": "Local DOCX and native Google Doc PDF: all five pages inspected",
+    "video_script": "412 spoken words; target 4:30 including navigation; numerical reference verified against hosted presets",
+    "requirements": "Handout and actual submission form reviewed",
+    "deadline": "2026-10-11 23:59 America/Los_Angeles",
+    "remaining": [
+      "Record video no longer than five minutes",
+      "Upload recording to Google Drive and verify anonymous viewer playback",
+      "Submit required identity, GitHub, video Drive and documentation Drive fields"
+    ]
+  }
+}
