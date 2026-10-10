@@ -1,19 +1,21 @@
 # Five minute demo
 
-Show a complete decision journey. All bundled results are synthetic illustrations.
+Tell the complete story from source data to a reviewable marketing decision. All bundled results are synthetic illustrations. Target 4:40 including navigation, with a 20-second buffer; rehearse the full flow.
 
-1. **0:00–0:35:** Introduce the marketer's question and synthetic-data label. Define contribution after ads.
-2. **0:35–1:25:** Click **1 · High ROAS, losing money**. Inspect Last chance packs: 10.68× ROAS, but a USD 12,861.97 contribution loss over 34 fully observed days. Show the cost waterfall and explicit 34-day selected/prior windows.
-3. **1:25–2:10:** Click **2 · Delayed purchases**. Show equal-age purchase curves and day-7/day-21 denominators. The coverage panel shows recent cohorts still developing; these patterns are hypotheses, not causal findings.
-4. **2:10–3:20:** Click **3 · Reallocate with constraints**. Save the initial plan as A, then lock Summit essentials for B. Both budgets equal USD 8,226.77; B retains USD 1,494.36 for Summit essentials. At the shared saturation assumption, that lock costs about USD 42 in modeled contribution versus A. Show the baseline satisfying B's own constraints and the sensitivity table.
-5. **3:20–3:55:** Download and open the budget brief. Show coverage, both saved/current settings and allocations, and the constraint-matched baseline. These are model outputs, not forecasts or measured improvement.
-6. **3:55–4:30:** Show source structure and 48-test evidence. Explain the real comparison bug: 34 mature days were compared to 90 prior days; the fix compares 34 with 34 and suppresses deltas when date coverage is incomplete.
+| Time | Show | Explain |
+| --- | --- | --- |
+| 0:00–0:20 | Overview | The question: can strong advertising revenue hide a contribution loss? |
+| 0:20–1:05 | Data & Methodology; Dataset contract | The team sample informed requirements. Our original seeded generator creates 12 campaigns, 4,320 daily creative records, and 13,365 orders. Explain campaigns, performance, orders, and the manifest; data is observed through September 30, 2026. |
+| 1:05–1:35 | Data validation and formulas; Overview; Platform Comparison | Validate inputs, aggregate orders before the spend-preserving join, calculate weighted rates, and apply shared date/channel/goal/audience filters. |
+| 1:35–2:15 | Preset 1; Last chance packs row; Contribution breakdown | Point to 10.68× Net ROAS and −USD 12,861.97 Contribution in the campaign table. Show equal 34-day windows, then the cost waterfall. |
+| 2:15–2:45 | Preset 2; cohort denominators | Pinterest: 2.46% at day 7 and 2.96% at day 21, with different eligible populations. Delayed outcomes require observation-age context; no causal conclusion is claimed. |
+| 2:45–3:35 | Preset 3; save A, lock Summit for B; A/B, baseline, sensitivity | Both budgets USD 8,226.77; Summit B locked at USD 1,494.36. Approximately USD 42 lower modeled contribution under the same saturation assumption. Show a baseline respecting B constraints. |
+| 3:35–4:00 | Download and independently open the current budget brief | Carry the scope, evidence, allocations, constraints, and assumptions into a shareable decision. |
+| 4:00–4:40 | GitHub generator/contract, passing tests, actual prompts/build log; return to live app | Describe Codex collaboration, the 34-versus-90-day comparison fix, synchronized resets, 48 tests, and byte-identical local/hosted data. |
 
-Capture actual prompts, screenshots, bugs/fixes, and final screens during development. Do not invent model accuracy, experimental evidence, user feedback, or advertising results.
+The default 90-day Overview includes 2,160 daily creative records; the full 180-day source dataset contains 4,320. Show the full counts in Data & Methodology when describing the dataset. Campaign findings are computed from records, not generator scenario labels. Reproducibility and structural checks do not establish real-world accuracy or causal advertising effects.
 
-The assignment requires a Google Doc, a live demo video up to five minutes, and a GitHub code link by October 11, 2026 at 11:59 PM PT.
-
-The submission form requires a **Video Demo Drive Link**. Upload the finished recording to Google Drive, give viewers link access, and check that it plays while signed out. The form also requires full name, email, GitHub repository link, and the project documentation Drive link. The documentation is ready; the recording and form submission remain.
+Use actual prompts, screens, bugs, and fixes. Do not invent experimental results or user feedback. The assignment requires a Google Doc, a live demo video up to five minutes, and a GitHub code link by October 11, 2026 at 11:59 PM Pacific. Upload the recording to Google Drive, enable viewer link access, and check signed-out playback. The form requires identity, GitHub, Video Demo Drive Link, and Project Documentation Drive Link. The recording and form submission remain.
 
 ## Verified recording reference
 
